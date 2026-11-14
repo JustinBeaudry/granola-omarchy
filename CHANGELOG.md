@@ -1,3 +1,10 @@
+# Unreleased
+
+- Rename the public repository/checkout to `granola-omarchy`, matching `spark-omarchy`.
+- Update canonical repo/download URLs and document legacy CLI/runtime-name compatibility.
+- Add a public project KB with architecture, verification boundaries and update/Voice Typing decisions.
+- Keep host-specific audio-input investigation in the user's root KB, not this public project.
+
 # v0.2.1
 
 - Scope a floating, borderless, shadowless rule to Granola's `Nub` recording

@@ -17,7 +17,7 @@ PROJECT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
 ROOT = DATA / 'omarchy-granola'
 CACHE = Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'omarchy-granola'
-MANIFEST_URL = 'https://github.com/JustinBeaudry/omarchy-granola/releases/latest/download/manifest.json'
+MANIFEST_URL = 'https://github.com/JustinBeaudry/granola-omarchy/releases/latest/download/manifest.json'
 
 
 def manifest(raw):

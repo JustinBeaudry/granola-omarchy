@@ -6,3 +6,8 @@ __pycache__/
 build/
 dist/
 .env
+
+# Publish curated KB Markdown, never caches or private source/session material.
+kb/.kb/
+kb/raw/
+kb/sessions/

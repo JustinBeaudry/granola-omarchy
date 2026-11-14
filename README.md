@@ -1,4 +1,4 @@
-# omarchy-granola
+# granola-omarchy
 
 Run the **actual Granola desktop app** on Omarchy, with automatic updates to
 maintainer-approved compatible versions. Not a clone, web wrapper, or alternative.
@@ -19,12 +19,16 @@ Omarchy normally provides the desktop/runtime libraries and PipeWire.
 
 ```sh
 omarchy pkg add base-devel python nodejs npm curl 7zip desktop-file-utils xdg-utils wtype
-git clone https://github.com/JustinBeaudry/omarchy-granola.git ~/Work/omarchy-granola
-cd ~/Work/omarchy-granola
+git clone https://github.com/JustinBeaudry/granola-omarchy.git ~/Work/granola-omarchy
+cd ~/Work/granola-omarchy
 ./bin/install
 ```
 
 Keep the checkout in place: launchers and the update service reference it.
+The project/repository was renamed from `omarchy-granola` to `granola-omarchy`
+to match `spark-omarchy`. The existing `omarchy-granola` management command,
+service names and XDG runtime/data paths remain unchanged for compatibility;
+no account-data migration is required.
 The install is per-user, never needs root, and does not change Hyprland settings
 or files in `/usr/share/omarchy`. The dependency command may need administrator
 authorization. Initial download/build can take several minutes.
@@ -153,6 +157,15 @@ rm -rf ~/.local/share/omarchy-granola ~/.cache/omarchy-granola
 
 Paths above assume default XDG directories. Restore another `granola://` handler
 with `xdg-mime` if applicable. Account data is intentionally kept.
+
+## Project knowledge base
+
+Project architecture, verification boundaries and release/update decisions live
+in [`kb/index.md`](kb/index.md), with conventions in [`kb/KB.md`](kb/KB.md).
+The checkout's `.kb` locator selects that vault for the KB CLI. Only curated,
+non-sensitive project knowledge is published; caches, raw sources and session
+material are ignored. Host microphone-driver troubleshooting belongs in the
+user's root KB, not the public project vault.
 
 ## Development and releases
 
