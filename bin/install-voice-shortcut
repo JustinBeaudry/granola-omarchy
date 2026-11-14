@@ -46,7 +46,11 @@ def lua(s):
 helper = str(repo / 'bin/granola-voice-key')
 command = "'" + helper.replace("'", "'\\''") + "' Fn "
 try:
-    atomic(module, '-- Only these configured key edges reach Granola. Other keys are not monitored.\n'
+    atomic(module, '-- Keep Granola’s recording pill frameless without changing the main window.\n'
+           + 'o.window({ class = "^granola$", title = "^Nub$" }, {\n'
+           + '  float = true, border_size = 0, decorate = false, no_shadow = true,\n'
+           + '})\n\n'
+           + '-- Only these configured key edges reach Granola. Other keys are not monitored.\n'
            + 'o.bind_hold(' + lua(a.shortcut) + ', "Granola Voice Typing: hold", '
            + lua(command + 'down') + ', "Granola Voice Typing: release", '
            + lua(command + 'up') + ')\n')

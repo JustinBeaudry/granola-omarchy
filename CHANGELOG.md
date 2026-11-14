@@ -1,3 +1,15 @@
+# v0.2.1
+
+- Scope a floating, borderless, shadowless rule to Granola's `Nub` recording
+  indicator; leave the main window's Omarchy decorations intact.
+- Confirm physical Fn events reach the Linux bridge and Granola starts dictation.
+
+**Known issue:** user reports no speech transcription. Granola logs several
+`voice_typing_completed` events with `outcome: empty` and zero characters. The
+user has disabled Granola Voice Typing for now. Microphone capture/transcription,
+meeting audio and summaries remain unverified; this release does not claim to
+fix them. Granola stays installed and the signed-in account is preserved.
+
 # v0.2.0
 
 Add Linux support for Granola's own Voice Typing.

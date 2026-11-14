@@ -39,6 +39,9 @@ Granola's original Voice Typing UI, audio capture, transcription and rewriting
 are retained. A small Linux JavaScript module replaces its macOS-only shortcut
 and text-insertion helper; it does not substitute a different dictation service.
 
+The installer keeps Granola's `Nub` recording indicator floating and undecorated
+(no compositor border or shadow), without changing its main window.
+
 The installer adds an Omarchy `o.bind_hold("XF86Fn", …)` binding. On Apple SPI
 keyboards, this is the **left Fn** key. Enable Voice Typing in Granola's settings
 and keep its hold shortcut set to **Fn**:
