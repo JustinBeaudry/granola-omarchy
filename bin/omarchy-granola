@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Install and supervise the genuine Granola app without redistributing it."""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.request
+
+PROJECT = Path(__file__).resolve().parent.parent
+DATA = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
+ROOT = DATA / 'omarchy-granola'
+CACHE = Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'omarchy-granola'
+MANIFEST_URL = 'https://github.com/JustinBeaudry/omarchy-granola/releases/latest/download/manifest.json'
+
+
+def manifest(raw):
+    m = json.loads(raw)
+    if m.get('schema') != 1 or not re.fullmatch(r'\d+\.\d+\.\d+', str(m.get('version', ''))):
+        raise ValueError('Invalid release manifest version/schema')
+    if not re.fullmatch(r'[0-9a-f]{64}', str(m.get('sha256', ''))):
+        raise ValueError('Invalid release checksum')
+    return m
+
+
+def read_url(url):
+    with urllib.request.urlopen(url, timeout=60) as r:
+        return r.read(65537)
+
+
+def current():
+    link = ROOT / 'current'
+    return link.resolve() if link.exists() else None
+
+
+def running():
+    # No command lines, tokens or note contents are read or logged.
+    for proc in Path('/proc').glob('[0-9]*/exe'):
+        try:
+            if str(proc.resolve()).startswith(str(ROOT / 'releases') + '/'):
+                return True
+        except (OSError, RuntimeError):
+            pass
+    return False
+
+
+def point(name, target):
+    tmp = ROOT / (name + '.new')
+    tmp.unlink(missing_ok=True)
+    tmp.symlink_to(target)
+    tmp.replace(ROOT / name)
+
+
+def digest(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def install(m):
+    version = m['version']
+    old = current()
+    if old and old.name == version:
+        print(f'Granola {version} is current.')
+        return
+    if running():
+        print('Granola is running; update deferred until it closes.')
+        return
+    CACHE.mkdir(parents=True, exist_ok=True)
+    dmg = CACHE / f'Granola-{version}-mac-universal.dmg'
+    if not dmg.exists() or digest(dmg) != m['sha256']:
+        part = dmg.with_suffix('.part')
+        url = f'https://dr2v7l5emb758.cloudfront.net/{version}/{dmg.name}'
+        try:
+            with urllib.request.urlopen(url, timeout=120) as src, part.open('wb') as dst:
+                shutil.copyfileobj(src, dst)
+            with part.open('rb') as f:
+                if hashlib.file_digest(f, 'sha256').hexdigest() != m['sha256']:
+                    raise ValueError('Granola download checksum mismatch')
+            part.replace(dmg)
+        finally:
+            part.unlink(missing_ok=True)
+    releases = ROOT / 'releases'
+    releases.mkdir(exist_ok=True)
+    target = releases / version
+    # Staging is on the same filesystem as releases, so promotion is a rename.
+    with tempfile.TemporaryDirectory(prefix='.stage-', dir=ROOT) as tmp:
+        env = dict(os.environ, GRANOLA_LINUX_HOME=str(Path(tmp) / 'runtime'),
+                   GRANOLA_LINUX_CACHE=str(CACHE / 'build'), GRANOLA_BUILD_ONLY='1')
+        subprocess.run(['bash', str(PROJECT / 'vendor/granola-linux'), 'install', '--dmg', str(dmg)],
+                       env=env, check=True)
+        if running():
+            raise RuntimeError('Granola started during build; retry after closing it')
+        if target.exists():
+            shutil.rmtree(target)
+        (Path(tmp) / 'runtime').rename(target)
+    if old:
+        point('previous', old)
+    point('current', target)
+    print(f'Installed Granola {version}. Previous version retained for rollback.')
+
+
+def launch(args):
+    ROOT.mkdir(parents=True, exist_ok=True)
+    lock = os.open(ROOT / 'update.lock', os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_SH)
+    os.set_inheritable(lock, True)
+    active = current()
+    if not active:
+        raise RuntimeError('Run omarchy-granola install first')
+    app = active / 'app/granola'
+    os.execv(str(app), [str(app), '--ozone-platform-hint=auto',
+                       '--enable-features=WebRTCPipeWireCapturer', *args])
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('command', choices=['install', 'update', 'open', 'status', 'rollback', 'updates'])
+    p.add_argument('args', nargs='*')
+    ns = p.parse_args()
+    if ns.command == 'open':
+        launch(ns.args)
+    if ns.command == 'status':
+        active = current()
+        print(json.dumps({'installed': active.name if active else None,
+                          'running': running(), 'data': str(ROOT),
+                          'updates': 'GitHub latest release manifest; systemd user timer'}))
+        return
+    if ns.command == 'updates':
+        if ns.args not in [['on'], ['off']]:
+            p.error('updates requires on or off')
+        subprocess.run(['systemctl', '--user', 'enable' if ns.args == ['on'] else 'disable',
+                        '--now', 'omarchy-granola-update.timer'], check=True)
+        return
+    ROOT.mkdir(parents=True, exist_ok=True)
+    with (ROOT / 'update.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Granola or another update is active; operation deferred.')
+            return
+        if ns.command in ['install', 'update']:
+            raw = (PROJECT / 'manifest.json').read_bytes() if ns.command == 'install' else read_url(MANIFEST_URL)
+            approved = manifest(raw)
+            active = current()
+            if active and tuple(map(int, active.name.split('.'))) > tuple(map(int, approved['version'].split('.'))):
+                raise RuntimeError('Refusing a downgrade; use rollback explicitly')
+            install(approved)
+        elif ns.command == 'rollback':
+            previous = ROOT / 'previous'
+            if running():
+                raise RuntimeError('Close Granola before rolling back')
+            if not previous.exists():
+                raise RuntimeError('No previous build available')
+            old, target = current(), previous.resolve()
+            point('current', target)
+            if old:
+                point('previous', old)
+            print(f'Rolled back to {target.name}. Disable updates to keep this version.')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(f'omarchy-granola: {exc}', file=sys.stderr)
+        sys.exit(1)

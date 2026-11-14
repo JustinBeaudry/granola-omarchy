@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "$0")/.." && pwd)
+[[ $repo != *'"'* && $repo != *'%'* && $repo != *$'\n'* ]] || { echo 'Unsupported checkout path' >&2; exit 1; }
+for cmd in python3 curl node npm make g++ 7z systemctl xdg-mime update-desktop-database; do
+  command -v "$cmd" >/dev/null || { echo "Missing $cmd. See README.md for dependencies." >&2; exit 1; }
+done
+"$repo/bin/omarchy-granola" install
+bin="$HOME/.local/bin"
+data="${XDG_DATA_HOME:-$HOME/.local/share}"
+config="${XDG_CONFIG_HOME:-$HOME/.config}"
+mkdir -p "$bin" "$data/applications" "$config/systemd/user"
+if [[ -e $bin/granola && ! -L $bin/granola ]]; then
+  echo "$bin/granola already exists; refusing to overwrite it" >&2
+  exit 1
+fi
+ln -sfn "$repo/bin/omarchy-granola" "$bin/omarchy-granola"
+printf '#!/bin/sh\nexec "%s/bin/omarchy-granola" open "$@"\n' "$repo" > "$bin/granola-omarchy"
+chmod +x "$bin/granola-omarchy"
+ln -sfn "$bin/granola-omarchy" "$bin/granola"
+cat > "$data/applications/omarchy-granola.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Granola
+Comment=Granola AI meeting notes (unofficial Linux integration)
+Exec="$bin/granola-omarchy" %U
+Icon=$data/omarchy-granola/current/granola.png
+Terminal=false
+Categories=Office;
+StartupWMClass=granola
+MimeType=x-scheme-handler/granola;
+EOF
+update-desktop-database "$data/applications"
+xdg-mime default omarchy-granola.desktop x-scheme-handler/granola
+cat > "$config/systemd/user/omarchy-granola-update.service" <<EOF
+[Unit]
+Description=Update Granola from the approved compatibility release
+[Service]
+Type=oneshot
+ExecStart="$repo/bin/omarchy-granola" update
+Environment="PATH=$PATH"
+UMask=0077
+TimeoutStartSec=45min
+EOF
+cp "$repo/systemd/omarchy-granola-update.timer" "$config/systemd/user/"
+systemctl --user daemon-reload
+systemctl --user enable --now omarchy-granola-update.timer
+printf 'Installed. Launch Granola from the app menu or run granola.\n'
