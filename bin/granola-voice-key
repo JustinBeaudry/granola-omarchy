@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Deliver a narrow compositor shortcut event to Granola's dictation utility."""
+import argparse
+import os
+from pathlib import Path
+import socket
+import sys
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument('key', choices=['Fn', 'Escape', 'ControlRight', 'AltRight', 'Space', 'status'])
+p.add_argument('edge', nargs='?', choices=['down', 'up'])
+a = p.parse_args()
+if a.key != 'status' and a.edge is None:
+    p.error('A key needs a down or up edge')
+path = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'omarchy-granola/dictation.sock'
+try:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(1)
+        client.connect(str(path))
+        client.sendall(('status\n' if a.key == 'status' else f'{a.key} {a.edge}\n').encode())
+        if a.key == 'status':
+            print(client.recv(1024).decode().strip())
+except OSError:
+    print('Granola Voice Typing is not listening. Enable Voice Typing in Granola settings.', file=sys.stderr)
+    sys.exit(1)

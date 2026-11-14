@@ -18,7 +18,7 @@ Requires Python 3.11+, Node ^22.22.2 / ^24.15.0 / >=26, npm, g++ >=11,
 Omarchy normally provides the desktop/runtime libraries and PipeWire.
 
 ```sh
-omarchy pkg add base-devel python nodejs npm curl 7zip desktop-file-utils xdg-utils
+omarchy pkg add base-devel python nodejs npm curl 7zip desktop-file-utils xdg-utils wtype
 git clone https://github.com/JustinBeaudry/omarchy-granola.git ~/Work/omarchy-granola
 cd ~/Work/omarchy-granola
 ./bin/install
@@ -32,6 +32,47 @@ authorization. Initial download/build can take several minutes.
 Launch **Granola** from Super+Space or run `granola`. Sign in through your
 browser; the installer registers the `granola://` callback with this app.
 Existing Granola notes/session under `~/.config/Granola` are reused, not deleted.
+
+## Voice Typing — left Fn
+
+Granola's original Voice Typing UI, audio capture, transcription and rewriting
+are retained. A small Linux JavaScript module replaces its macOS-only shortcut
+and text-insertion helper; it does not substitute a different dictation service.
+
+The installer adds an Omarchy `o.bind_hold("XF86Fn", …)` binding. On Apple SPI
+keyboards, this is the **left Fn** key. Enable Voice Typing in Granola's settings
+and keep its hold shortcut set to **Fn**:
+
+- **Hold Fn** for at least 300 ms, speak, then **release** to finish and insert.
+- **Double-tap Fn** for hands-free; press Fn again to finish.
+- Focus the intended text field **before** recording. Text is inserted with
+  `wtype` over Wayland, not copied through clipboard history.
+
+To use a different physical shortcut, with Granola's internal shortcut still Fn:
+
+```sh
+./bin/install-voice-shortcut 'SUPER + ALT + V'
+./bin/granola-voice-key status  # listener health and configured-edge count only
+```
+
+Check for existing bindings before choosing a custom chord. The installer
+refuses to overwrite another Fn action. Fn may not reach the compositor on other
+keyboard models. Granola's displayed **Fn+Space** default is not wired by this
+bridge; use double-tap Fn instead. Arbitrary shortcuts recorded in Granola's UI
+are not automatically registered with Hyprland.
+
+Only configured key edges cross a private per-user Unix socket. No root access,
+input-device permissions, global raw key listener, screen reading or accessibility
+text collection is used. Rich-text insertion, edit observation/automatic word
+learning and native screen context are not implemented on Linux. Linux does not
+check the focused field for secure/password input: choose the target carefully.
+Audio/transcripts still go to Granola's services under its policies.
+
+To upgrade an existing installation: **quit Granola completely**, update this
+checkout and rerun `./bin/install`. A hidden tray process is still running;
+merely closing its window is not enough. Startup and native-helper/Wayland typing
+have been tested; final microphone-to-transcript-to-insertion verification
+requires speaking into a test field on your machine.
 
 ## Updates and rollback
 
@@ -68,7 +109,9 @@ the approved version. Old builds/downloads are retained; monitor disk usage.
 ## Verify before real meetings
 
 Installation smoke-tests encrypted SQLite, update hooks, and the Wayland drag
-shim. That does **not** prove sign-in, calendar sync, transcription, summarizing,
+shim, then installs the length-preserving Voice Typing patches. The dictation
+utility has been observed staying alive, and real Unicode text insertion into
+a disposable Wayland GTK window has been verified. That does **not** prove sign-in, calendar sync, transcription, summarizing,
 or system-audio capture work on your machine. After signing in, start a test note,
 speak into the microphone, play system audio, and verify **both** appear in the
 transcript and generated notes. Portal/PipeWire loopback behavior can vary.
@@ -86,11 +129,16 @@ rather than granting broad privileges to this integration.
 - `~/.cache/omarchy-granola/`: downloaded images and build cache
 - `~/.config/Granola/`: **Granola's own private account and notes data**
 - `~/.config/systemd/user/omarchy-granola-update.*`: update service/timer
+- `~/.config/hypr/granola-voice.lua`: compositor shortcut, loaded from `bindings.lua`
 
 To remove integration (close Granola first):
 
 ```sh
 omarchy-granola updates off
+# Remove require("granola-voice") from ~/.config/hypr/bindings.lua first.
+rm ~/.config/hypr/granola-voice.lua
+hyprctl reload
+hyprctl configerrors
 rm ~/.config/systemd/user/omarchy-granola-update.{service,timer}
 systemctl --user daemon-reload
 rm ~/.local/bin/{granola,granola-omarchy,omarchy-granola}
@@ -107,6 +155,7 @@ with `xdg-mime` if applicable. Account data is intentionally kept.
 
 ```sh
 python3 -m unittest discover -s tests -v
+node --test tests/dictation.test.cjs
 bash -n bin/install vendor/granola-linux
 ```
 

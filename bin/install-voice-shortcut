@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Install a compositor shortcut for Granola Voice Typing (left Fn by default)."""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument('shortcut', nargs='?', default='XF86Fn', help='Hyprland chord; default is the left Fn key on Apple SPI keyboards')
+a = p.parse_args()
+if not re.fullmatch(r'[A-Za-z0-9_:+ ]+', a.shortcut):
+    p.error('Unsupported shortcut syntax')
+if a.shortcut == 'XF86Fn':
+    existing = json.loads(subprocess.check_output(['hyprctl', 'binds', '-j']))
+    if any(x.get('key') == 'XF86Fn' and not x.get('description', '').startswith('Granola Voice Typing:') for x in existing):
+        p.error('Fn already has a binding. Review existing shortcuts before replacing it.')
+repo = Path(__file__).resolve().parent.parent
+config = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'hypr'
+bindings = config / 'bindings.lua'
+if not bindings.exists():
+    p.error('Omarchy Lua bindings.lua not found; see README.md for manual configuration')
+module = config / 'granola-voice.lua'
+old = bindings.read_text()
+old_module = module.read_text() if module.exists() else None
+line = 'require("granola-voice")'
+if line not in old:
+    shutil.copy2(bindings, bindings.with_name('bindings.lua.bak.' + datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
+if module.exists():
+    shutil.copy2(module, module.with_suffix('.lua.bak'))
+
+
+def atomic(path, content):
+    tmp = path.with_suffix('.lua.new')
+    tmp.write_text(content)
+    tmp.replace(path)
+
+
+def lua(s):
+    return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
+
+
+helper = str(repo / 'bin/granola-voice-key')
+command = "'" + helper.replace("'", "'\\''") + "' Fn "
+try:
+    atomic(module, '-- Only these configured key edges reach Granola. Other keys are not monitored.\n'
+           + 'o.bind_hold(' + lua(a.shortcut) + ', "Granola Voice Typing: hold", '
+           + lua(command + 'down') + ', "Granola Voice Typing: release", '
+           + lua(command + 'up') + ')\n')
+    if line not in old:
+        atomic(bindings, old.rstrip() + '\n\n-- Granola Voice Typing shortcut (managed by omarchy-granola).\n' + line + '\n')
+    subprocess.run(['hyprctl', 'reload'], check=True)
+    result = subprocess.run(['hyprctl', 'configerrors'], check=True, capture_output=True, text=True)
+    if result.stdout.strip() not in ('', 'ok', '[]'):
+        raise RuntimeError(result.stdout.strip())
+except (OSError, RuntimeError, subprocess.CalledProcessError):
+    atomic(bindings, old)
+    if old_module is None:
+        module.unlink(missing_ok=True)
+    else:
+        atomic(module, old_module)
+    subprocess.run(['hyprctl', 'reload'], check=False)
+    raise
+print('Hyprland configuration is valid.')
+print(f'Granola Voice Typing: {a.shortcut} — hold to talk, double-tap for hands-free.')
+print('This maps the compositor shortcut to Fn inside Granola. Keep Granola’s hold shortcut set to Fn.')

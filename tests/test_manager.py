@@ -37,7 +37,10 @@ class ManagerTests(unittest.TestCase):
                         m.install(release)
                 self.assertEqual(m.current(), old)
                 self.assertFalse((root / 'previous').exists())
-                with patch.object(m.subprocess, 'run', side_effect=lambda *a, **kw: Path(kw['env']['GRANOLA_LINUX_HOME']).mkdir()):
+                def fake_build(*args, **kwargs):
+                    if 'env' in kwargs:
+                        Path(kwargs['env']['GRANOLA_LINUX_HOME']).mkdir()
+                with patch.object(m.subprocess, 'run', side_effect=fake_build):
                     m.install(release)
                 self.assertEqual(m.current().name, '2.0.0')
                 self.assertEqual((root / 'previous').resolve(), old)

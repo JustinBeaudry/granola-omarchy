@@ -2,7 +2,7 @@
 set -euo pipefail
 repo=$(cd -- "$(dirname -- "$0")/.." && pwd)
 [[ $repo != *'"'* && $repo != *'%'* && $repo != *$'\n'* ]] || { echo 'Unsupported checkout path' >&2; exit 1; }
-for cmd in python3 curl node npm make g++ 7z systemctl xdg-mime update-desktop-database; do
+for cmd in python3 curl node npm make g++ 7z systemctl xdg-mime update-desktop-database wtype; do
   command -v "$cmd" >/dev/null || { echo "Missing $cmd. See README.md for dependencies." >&2; exit 1; }
 done
 "$repo/bin/omarchy-granola" install
@@ -45,4 +45,5 @@ EOF
 cp "$repo/systemd/omarchy-granola-update.timer" "$config/systemd/user/"
 systemctl --user daemon-reload
 systemctl --user enable --now omarchy-granola-update.timer
+"$repo/bin/install-voice-shortcut"
 printf 'Installed. Launch Granola from the app menu or run granola.\n'

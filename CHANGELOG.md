@@ -1,3 +1,29 @@
+# v0.2.0
+
+Add Linux support for Granola's own Voice Typing.
+
+- Replace the unavailable macOS dictation helper with a JavaScript Linux bridge.
+- Keep Granola's audio, transcription, rewriting and dictation history intact.
+- Bind left Fn via Hyprland for hold/release and double-tap hands-free gestures.
+- Insert text through Wayland `wtype` using stdin, without clipboard-history exposure.
+- Use a private Unix socket, without root privileges or raw input-device access.
+- Add configurable compositor shortcut installation with conflict/config checks.
+- Reapply length-preserving Voice Typing patches to new approved app builds.
+- Fix update-lock inheritance and exclude orphaned crash reporters from app-running checks.
+- Add patch idempotency/failure tests and shortcut/typing bridge tests.
+
+Verified: user confirmed successful sign-in and existing chats; Granola's
+shortcut utility remains alive, settings show Fn, Hyprland configuration is
+valid, and real Unicode insertion into a disposable GTK Wayland window works.
+Five Python tests and two Node tests pass. **Physical Fn triggering and a spoken
+end-to-end dictation test still require user verification.** A synthetic Fn tap
+sent through `wtype` did not trigger the compositor binding; direct bridge events
+are tested separately. No spoken end-to-end dictation test was performed.
+
+Linux limitations: no native screen context, rich-text insertion, edit observation,
+or automatic focused-password-field detection. Fn+Space shown in Granola's UI
+is not mapped; use double-tap Fn. Compatibility code updates remain explicit.
+
 # v0.1.0
 
 Initial Omarchy integration for the genuine Granola desktop application.

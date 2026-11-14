@@ -43,7 +43,8 @@ def running():
     # No command lines, tokens or note contents are read or logged.
     for proc in Path('/proc').glob('[0-9]*/exe'):
         try:
-            if str(proc.resolve()).startswith(str(ROOT / 'releases') + '/'):
+            executable = proc.resolve()
+            if executable.name == 'granola' and str(executable).startswith(str(ROOT / 'releases') + '/'):
                 return True
         except (OSError, RuntimeError):
             pass
@@ -66,6 +67,8 @@ def install(m):
     version = m['version']
     old = current()
     if old and old.name == version:
+        if not running():
+            subprocess.run([sys.executable, str(PROJECT / 'bin/patch-voice-typing'), str(old)], check=True)
         print(f'Granola {version} is current.')
         return
     if running():
@@ -94,6 +97,8 @@ def install(m):
                    GRANOLA_LINUX_CACHE=str(CACHE / 'build'), GRANOLA_BUILD_ONLY='1')
         subprocess.run(['bash', str(PROJECT / 'vendor/granola-linux'), 'install', '--dmg', str(dmg)],
                        env=env, check=True)
+        subprocess.run([sys.executable, str(PROJECT / 'bin/patch-voice-typing'),
+                        str(Path(tmp) / 'runtime')], check=True)
         if running():
             raise RuntimeError('Granola started during build; retry after closing it')
         if target.exists():
@@ -109,7 +114,8 @@ def launch(args):
     ROOT.mkdir(parents=True, exist_ok=True)
     lock = os.open(ROOT / 'update.lock', os.O_CREAT | os.O_RDWR, 0o600)
     fcntl.flock(lock, fcntl.LOCK_SH)
-    os.set_inheritable(lock, True)
+    # Close-on-exec hands protection to the running-process check without
+    # leaking the update lock into Chromium's long-lived crash reporter.
     active = current()
     if not active:
         raise RuntimeError('Run omarchy-granola install first')
